@@ -44,7 +44,7 @@ var (
 // flags
 var (
 	Build        = "lol"
-	configPath   = flag.String("config", "~/nebula/config.yml", "Path to either a file or directory to load configuration from")
+	configPath   = flag.String("config", "/Users/jbain/nebula/config.yml", "Path to either a file or directory to load configuration from")
 	configTest   = flag.Bool("test", false, "Test the config and print the end result. Non zero exit indicates a faulty config")
 	printVersion = flag.Bool("version", false, "Print version")
 	printUsage   = flag.Bool("help", false, "Print command line usage")
