@@ -49,6 +49,12 @@ func initStatusWindow() {
 	mainLayout := container.New(
 		layout.NewVBoxLayout(),
 		statusW.topBox,
+		container.New(layout.NewCenterLayout(),
+			container.New(layout.NewHBoxLayout(),
+				widgetBoldText("Nebula Version:"),
+				widgetBoldText(NebulaVersion),
+			),
+		),
 		reasonBox,
 		//main box
 		widget.NewSeparator(),

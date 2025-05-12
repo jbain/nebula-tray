@@ -23,6 +23,11 @@ const (
 	StateFailed  nebulaState = "FAILED"
 )
 
+// ldflags
+var (
+	NebulaVersion = "unknown"
+)
+
 // service internals
 var (
 	nebulaTray  fyne.App
