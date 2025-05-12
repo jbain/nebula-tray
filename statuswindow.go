@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -17,6 +18,9 @@ type statusWindow struct {
 	statusReason  *canvas.Text
 	connectButton *widget.Button
 	topBox        *fyne.Container
+
+	nebIp  *canvas.Text
+	nebDev *canvas.Text
 }
 
 func initStatusWindow() {
@@ -27,19 +31,47 @@ func initStatusWindow() {
 		connectButton: widget.NewButton("", func() {
 			toggleNebula()
 		}),
+		nebIp:  canvas.NewText("-", color.Black),
+		nebDev: canvas.NewText("-", color.Black),
 	}
+
 	statusW.topBox = container.New(layout.NewCenterLayout(),
 		container.New(layout.NewHBoxLayout(),
-			statusW.connectButton,
-			widget.NewLabel("Nebula Status:"),
+			widgetBoldText("Nebula Status:"),
 			statusW.status,
+			statusW.connectButton,
 		),
 	)
-	reasonBox := container.New(layout.NewHBoxLayout(),
+	reasonBox := container.New(layout.NewCenterLayout(),
 		statusW.statusReason,
 	)
 
-	mainLayout := container.New(layout.NewVBoxLayout(), statusW.topBox, reasonBox)
+	mainLayout := container.New(
+		layout.NewVBoxLayout(),
+		statusW.topBox,
+		reasonBox,
+		//main box
+		widget.NewSeparator(),
+		container.New(layout.NewHBoxLayout(),
+			//left box
+			container.New(layout.NewVBoxLayout(),
+				container.NewHBox(widgetBoldText("NebulaIp"), statusW.nebIp),
+				container.NewHBox(widgetBoldText("NebulaDev"), statusW.nebDev),
+			),
+			//no right box yet
+		),
+		layout.NewSpacer(),
+		container.New(layout.NewCenterLayout(),
+			container.New(layout.NewHBoxLayout(),
+				widget.NewButton("close", func() { statusW.w.Hide() }),
+				widget.NewButton("quit", func() {
+					statusW.w.Hide()
+					quit()
+				}),
+			),
+		),
+	)
+
 	statusW.w.SetContent(mainLayout)
 	statusW.w.Resize(fyne.NewSize(300, 200))
 
@@ -50,18 +82,35 @@ func initStatusWindow() {
 	updateStatusWindow()
 
 }
+
+func widgetBoldText(s string) *canvas.Text {
+	text := canvas.NewText(s, color.Black)
+	text.TextStyle = fyne.TextStyle{
+		Bold: true,
+	}
+	return text
+}
+
 func updateStatusWindow() {
 	statusW.statusReason.Text = stateReason
 	statusW.status.Text = getStateColor()
 	switch state {
 	case StateStarted:
 		statusW.connectButton.SetText("stop")
+		statusW.nebIp.Text = ctrl.Device().Cidr().String()
+		statusW.nebDev.Text = ctrl.Device().Name()
+
+		tun := ctrl.PrintTunnel(ctrl.Device().Cidr().Addr())
+		fmt.Printf("tunneL: %+v\n", tun)
 	case StateFailed:
 		statusW.connectButton.SetText("retry")
+		statusW.nebIp.Text = "-"
+		statusW.nebDev.Text = "-"
 	case StateStopped:
 		statusW.connectButton.SetText("start")
+		statusW.nebIp.Text = "-"
+		statusW.nebDev.Text = "-"
 	}
-
 }
 
 func showStatusWindow() {
@@ -69,12 +118,12 @@ func showStatusWindow() {
 }
 
 func getStateColor() string {
-	color := string(state)
+	c := string(state)
 	switch state {
 	case StateStopped:
-		color = string(state)
+		c = string(state)
 	case StateFailed:
-		color = string(state)
+		c = string(state)
 	}
-	return color
+	return c
 }

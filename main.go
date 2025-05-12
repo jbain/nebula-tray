@@ -143,11 +143,10 @@ func setState(s nebulaState, reason string) {
 }
 
 func updateSystrayMenu() {
-	quit := fyne.NewMenuItem("Quit", func() {
-		stopNebula()
-		os.Exit(0)
+	q := fyne.NewMenuItem("Quit", func() {
+		quit()
 	})
-	quit.IsQuit = true
+	q.IsQuit = true
 	systrayMenu.Items = []*fyne.MenuItem{
 		fyne.NewMenuItem(menuStartStopStr(), func() {
 			toggleNebula()
@@ -156,10 +155,15 @@ func updateSystrayMenu() {
 			showStatusWindow()
 		}),
 		fyne.NewMenuItemSeparator(),
-		quit,
+		q,
 	}
 
 	systrayMenu.Refresh()
+}
+
+func quit() {
+	stopNebula()
+	os.Exit(0)
 }
 
 func menuStartStopStr() string {
