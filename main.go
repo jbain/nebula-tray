@@ -53,6 +53,11 @@ var (
 	configTest   = flag.Bool("test", false, "Test the config and print the end result. Non zero exit indicates a faulty config")
 	printVersion = flag.Bool("version", false, "Print version")
 	printUsage   = flag.Bool("help", false, "Print command line usage")
+
+	// internal, set by nebula-tray itself when relaunching - not meant to
+	// be passed by users. See elevate.go.
+	viaOsascript       = flag.Bool("elevate-via-osascript", false, "internal: set on the process osascript launches directly")
+	elevationAttempted = flag.Bool("elevate-attempted", false, "internal: set once an elevation relaunch has been attempted, to avoid retry loops")
 )
 
 func main() {
@@ -69,17 +74,28 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *viaOsascript {
+		// This process is the one osascript launched directly as root. Hand
+		// off to a plain, detached relaunch of itself and exit immediately,
+		// so the "do shell script" osascript is running completes right
+		// away instead of staying resident for the app's whole lifetime.
+		relaunchDirect()
+	}
+
 	if *configPath == "" {
 		fmt.Println("-config flag must be set")
 		flag.Usage()
 		os.Exit(1)
 	}
 
+	nebulaTray = app.New()
+	nebulaTray.SetIcon(theme.Icon(theme.IconNameComputer))
+
+	ensureElevated(nebulaTray)
+
 	l = logrus.New()
 	l.Out = os.Stdout
 
-	nebulaTray = app.New()
-	nebulaTray.SetIcon(theme.Icon(theme.IconNameComputer))
 	initStatusWindow()
 
 	if desk, ok := nebulaTray.(desktop.App); ok {
