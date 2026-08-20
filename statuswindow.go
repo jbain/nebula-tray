@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -107,7 +106,7 @@ func updateStatusWindow() {
 		statusW.nebDev.Text = ctrl.Device().Name()
 
 		tun := ctrl.PrintTunnel(ctrl.Device().Cidr().Addr())
-		fmt.Printf("tunneL: %+v\n", tun)
+		l.Debugf("tunnel: %+v", tun)
 	case StateFailed:
 		statusW.connectButton.SetText("retry")
 		statusW.nebIp.Text = "-"

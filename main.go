@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"github.com/sirupsen/logrus"
@@ -37,6 +38,11 @@ var (
 
 	togglemtx = sync.Mutex{}
 	l         *logrus.Logger
+
+	// logDestination is the resolved, absolute -log-output value (or
+	// "stdout"). It's set once in main and carried through the elevation
+	// relaunch hops - see elevatedRelaunchArgs in logging.go.
+	logDestination string
 )
 
 // interface elements
@@ -53,6 +59,7 @@ var (
 	configTest   = flag.Bool("test", false, "Test the config and print the end result. Non zero exit indicates a faulty config")
 	printVersion = flag.Bool("version", false, "Print version")
 	printUsage   = flag.Bool("help", false, "Print command line usage")
+	logOutput    = flag.String("log-output", "", "Where to write logs: a file path, or the reserved value \"stdout\" for direct/already-elevated runs. Defaults to ~/Library/Logs/Nebula Tray/nebula-tray.log")
 
 	// internal, set by nebula-tray itself when relaunching - not meant to
 	// be passed by users. See elevate.go.
@@ -74,15 +81,50 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Logging is initialized before config discovery, GUI init, or
+	// elevation so startup and handoff failures are captured, not just
+	// whatever comes after it succeeds.
+	dest, err := resolveLogDestination(*logOutput)
+	if err != nil {
+		fatalStartup(err)
+	}
+	if dest == stdoutDestination && os.Geteuid() != 0 {
+		// stdout only makes sense for a process that's already privileged;
+		// a process about to elevate can't carry a real stdout descriptor
+		// across the osascript handoff (see elevate.go), and reattaching
+		// osascript's captured pipe there would keep it resident.
+		fatalStartup(fmt.Errorf("-log-output stdout requires the process to already be running with administrator privileges; pass a log file path so elevation can hand it off across processes"))
+	}
+	logDestination = dest
+
+	stage := "initial"
+	switch {
+	case *viaOsascript:
+		stage = "osascript-handoff"
+	case *elevationAttempted:
+		stage = "elevated-app"
+	}
+
+	logger, logCloser, err := setupLogger(dest, stage)
+	if err != nil {
+		fatalStartup(fmt.Errorf("opening log output %q: %w", dest, err))
+	}
+	l = logger
+	defer logCloser.Close()
+
+	l.Info("nebula-tray starting")
+
 	if *viaOsascript {
 		// This process is the one osascript launched directly as root. Hand
 		// off to a plain, detached relaunch of itself and exit immediately,
 		// so the "do shell script" osascript is running completes right
 		// away instead of staying resident for the app's whole lifetime.
+		l.Info("received osascript handoff, relaunching detached")
 		relaunchDirect()
 	}
 
 	if *configPath == "" {
+		l.Error("-config flag must be set")
 		fmt.Println("-config flag must be set")
 		flag.Usage()
 		os.Exit(1)
@@ -93,9 +135,6 @@ func main() {
 
 	ensureElevated(nebulaTray)
 
-	l = logrus.New()
-	l.Out = os.Stdout
-
 	initStatusWindow()
 
 	if desk, ok := nebulaTray.(desktop.App); ok {
@@ -105,6 +144,33 @@ func main() {
 
 	showStatusWindow()
 	nebulaTray.Run()
+}
+
+// fatalStartup reports a startup failure that happened before (or while)
+// initializing logging and exits non-zero. There's no shared logger to
+// fall back to here - and no silent fallback allowed either - so the exact
+// destination/error always goes to stderr, plus a visible dialog for a GUI
+// launch. The osascript-handoff process never has a GUI to show, and
+// whatever it writes to stderr is relayed by osascript's captured pipe.
+func fatalStartup(err error) {
+	fmt.Fprintf(os.Stderr, "nebula-tray: %s\n", err)
+
+	if !*viaOsascript {
+		a := app.New()
+		w := a.NewWindow("Nebula Tray - Startup Error")
+		w.Resize(fyne.NewSize(420, 160))
+		w.CenterOnScreen()
+
+		d := dialog.NewError(err, w)
+		d.SetOnClosed(func() { a.Quit() })
+		w.SetCloseIntercept(func() { a.Quit() })
+
+		w.Show()
+		d.Show()
+		a.Run()
+	}
+
+	os.Exit(1)
 }
 
 func toggleNebula() {
@@ -183,6 +249,7 @@ func updateSystrayMenu() {
 }
 
 func quit() {
+	l.Info("shutting down")
 	stopNebula()
 	os.Exit(0)
 }

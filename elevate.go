@@ -39,7 +39,7 @@ func ensureElevated(a fyne.App) {
 	}
 
 	if *elevationAttempted {
-		fmt.Println("already attempted elevation once and still not running as root; giving up")
+		l.Error("already attempted elevation once and still not running as root; giving up")
 		os.Exit(1)
 	}
 
@@ -58,8 +58,10 @@ func ensureElevated(a fyne.App) {
 		"Nebula Tray needs administrator privileges to create the VPN tunnel.\nYou'll be asked to authenticate.",
 		func(ok bool) {
 			if !ok {
+				l.Info("user declined the administrator-privileges prompt; exiting")
 				os.Exit(0)
 			}
+			l.Info("user confirmed the administrator-privileges prompt; beginning osascript handoff")
 			relaunchViaOsascript()
 		},
 		w,
@@ -78,14 +80,11 @@ func ensureElevated(a fyne.App) {
 func relaunchViaOsascript() {
 	self, err := os.Executable()
 	if err != nil {
-		fmt.Printf("failed to determine executable path for elevation: %s\n", err)
+		l.Errorf("failed to determine executable path for elevation: %s", err)
 		os.Exit(1)
 	}
 
-	args := []string{"-elevate-via-osascript", "-config", *configPath}
-	if *configTest {
-		args = append(args, "-test")
-	}
+	args := elevatedRelaunchArgs("-elevate-via-osascript", *configPath, *configTest, logDestination)
 
 	parts := make([]string, 0, len(args)+1)
 	parts = append(parts, quoteForShell(self))
@@ -101,16 +100,17 @@ func relaunchViaOsascript() {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
-		fmt.Printf("failed to relaunch with elevated privileges: %s\n", err)
+		l.Errorf("failed to relaunch with elevated privileges: %s", err)
 		os.Exit(1)
 	}
+	l.Info("osascript authentication prompt launched")
 
 	// Detach rather than Wait: the auth prompt and everything after it
 	// happen independently of this process, which has nothing left to do
 	// but exit. Per the os.Process docs, Release is how you hand a started
 	// child off without leaking Go-side process state.
 	if err := cmd.Process.Release(); err != nil {
-		fmt.Printf("failed to release elevated process: %s\n", err)
+		l.Warnf("failed to release elevated process: %s", err)
 	}
 
 	os.Exit(0)
@@ -123,14 +123,11 @@ func relaunchViaOsascript() {
 func relaunchDirect() {
 	self, err := os.Executable()
 	if err != nil {
-		fmt.Printf("failed to determine executable path for direct relaunch: %s\n", err)
+		l.Errorf("failed to determine executable path for direct relaunch: %s", err)
 		os.Exit(1)
 	}
 
-	args := []string{"-elevate-attempted", "-config", *configPath}
-	if *configTest {
-		args = append(args, "-test")
-	}
+	args := elevatedRelaunchArgs("-elevate-attempted", *configPath, *configTest, logDestination)
 
 	cmd := exec.Command(self, args...)
 	// Do not inherit stdout/stderr from the process launched by
@@ -140,11 +137,12 @@ func relaunchDirect() {
 	// os/exec connect the child to the null device.
 
 	if err := cmd.Start(); err != nil {
-		fmt.Printf("failed to relaunch directly: %s\n", err)
+		l.Errorf("failed to relaunch directly: %s", err)
 		os.Exit(1)
 	}
+	l.Info("elevated app relaunched directly; osascript handoff complete")
 	if err := cmd.Process.Release(); err != nil {
-		fmt.Printf("failed to release relaunched process: %s\n", err)
+		l.Warnf("failed to release relaunched process: %s", err)
 	}
 
 	os.Exit(0)
