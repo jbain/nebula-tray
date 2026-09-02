@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -122,16 +123,16 @@ func (h stagePIDHook) Fire(e *logrus.Entry) error {
 // normal shutdown; process exit closes it regardless, and no entry is
 // buffered beyond its own Write call, so nothing is lost on the os.Exit
 // paths elsewhere in the app.
-func setupLogger(dest, stage string) (*logrus.Logger, io.Closer, error) {
+func setupLogger(dest, stage string) (*slog.Logger, io.Closer, error) {
 	w, err := openLogDestination(dest)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	logger := logrus.New()
-	logger.Out = w
-	logger.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
-	logger.AddHook(stagePIDHook{pid: os.Getpid(), stage: stage})
+	logger := slog.New(slog.NewTextHandler(w, nil))
+
+	logger.With(slog.String("pid", fmt.Sprintf("%d", os.Getpid())))
+	logger.With(slog.String("stage", stage))
 
 	return logger, w, nil
 }

@@ -3,17 +3,19 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
+	"os"
+	"sync"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
-	"github.com/sirupsen/logrus"
+
 	"github.com/slackhq/nebula"
 	"github.com/slackhq/nebula/config"
-	"os"
-	"sync"
 )
 
 type nebulaState string
@@ -37,7 +39,7 @@ var (
 	stateReason = "not started"
 
 	togglemtx = sync.Mutex{}
-	l         *logrus.Logger
+	l         *slog.Logger
 
 	// logDestination is the resolved, absolute -log-output value (or
 	// "stdout"). It's set once in main and carried through the elevation
@@ -192,19 +194,20 @@ func startNebula() {
 	c := config.NewC(l)
 	err := c.Load(*configPath)
 	if err != nil {
-		l.Errorf("failed to load config: %s", err)
+
+		l.Error("failed to load config", slog.String("error", err.Error()))
 		setState(StateFailed, fmt.Sprintf("failed to load config: %s", err))
 		return
 	}
 
 	ctrl, err = nebula.Main(c, *configTest, Build, l, nil)
 	if err != nil {
-		l.Errorf("Failed to start: %s", err)
+		l.Error("Failed to start", slog.String("error", err.Error()))
 		setState(StateFailed, fmt.Sprintf("failed to start: %s", err))
 		return
 	}
-
 	ctrl.Start()
+
 	setState(StateStarted, "started successfully")
 	l.Info("nebula started")
 }

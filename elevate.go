@@ -80,7 +80,7 @@ func ensureElevated(a fyne.App) {
 func relaunchViaOsascript() {
 	self, err := os.Executable()
 	if err != nil {
-		l.Errorf("failed to determine executable path for elevation: %s", err)
+		l.Error("failed to determine executable path for elevation", "error", err)
 		os.Exit(1)
 	}
 
@@ -100,7 +100,7 @@ func relaunchViaOsascript() {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
-		l.Errorf("failed to relaunch with elevated privileges: %s", err)
+		l.Error("failed to relaunch with elevated privileges", "error", err)
 		os.Exit(1)
 	}
 	l.Info("osascript authentication prompt launched")
@@ -110,7 +110,7 @@ func relaunchViaOsascript() {
 	// but exit. Per the os.Process docs, Release is how you hand a started
 	// child off without leaking Go-side process state.
 	if err := cmd.Process.Release(); err != nil {
-		l.Warnf("failed to release elevated process: %s", err)
+		l.Warn("failed to release elevated process", "error", err)
 	}
 
 	os.Exit(0)
@@ -123,7 +123,7 @@ func relaunchViaOsascript() {
 func relaunchDirect() {
 	self, err := os.Executable()
 	if err != nil {
-		l.Errorf("failed to determine executable path for direct relaunch: %s", err)
+		l.Error("failed to determine executable path for direct relaunch", "error", err)
 		os.Exit(1)
 	}
 
@@ -137,12 +137,12 @@ func relaunchDirect() {
 	// os/exec connect the child to the null device.
 
 	if err := cmd.Start(); err != nil {
-		l.Errorf("failed to relaunch directly: %s", err)
+		l.Error("failed to relaunch directly", "error", err)
 		os.Exit(1)
 	}
 	l.Info("elevated app relaunched directly; osascript handoff complete")
 	if err := cmd.Process.Release(); err != nil {
-		l.Warnf("failed to release relaunched process: %s", err)
+		l.Warn("failed to release relaunched process", "error", err)
 	}
 
 	os.Exit(0)

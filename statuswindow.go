@@ -1,12 +1,13 @@
 package main
 
 import (
+	"image/color"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
-	"image/color"
 )
 
 var statusW statusWindow
@@ -102,11 +103,8 @@ func updateStatusWindow() {
 	switch state {
 	case StateStarted:
 		statusW.connectButton.SetText("stop")
-		statusW.nebIp.Text = ctrl.Device().Cidr().String()
+		statusW.nebIp.Text = ctrl.Device().Networks()[0].String()
 		statusW.nebDev.Text = ctrl.Device().Name()
-
-		tun := ctrl.PrintTunnel(ctrl.Device().Cidr().Addr())
-		l.Debugf("tunnel: %+v", tun)
 	case StateFailed:
 		statusW.connectButton.SetText("retry")
 		statusW.nebIp.Text = "-"
