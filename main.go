@@ -35,6 +35,7 @@ var (
 var (
 	nebulaTray  fyne.App
 	ctrl        *nebula.Control
+	cfg         *config.C
 	state       = StateStopped
 	stateReason = "not started"
 
@@ -133,11 +134,18 @@ func main() {
 	}
 
 	nebulaTray = app.New()
+	preventAutomaticTermination()
 	nebulaTray.SetIcon(theme.Icon(theme.IconNameComputer))
 
 	ensureElevated(nebulaTray)
 
 	initStatusWindow()
+
+	// Load the route list up front so the tray menu offers the unsafe route
+	// toggles before nebula has been started for the first time.
+	if err := refreshViaGroups(); err != nil {
+		l.Warn("could not load routes from config", slog.String("error", err.Error()))
+	}
 
 	if desk, ok := nebulaTray.(desktop.App); ok {
 		updateSystrayMenu()
@@ -191,10 +199,8 @@ func startNebula() {
 		return
 	}
 	l.Info("starting nebula")
-	c := config.NewC(l)
-	err := c.Load(*configPath)
+	c, err := loadNebulaConfig()
 	if err != nil {
-
 		l.Error("failed to load config", slog.String("error", err.Error()))
 		setState(StateFailed, fmt.Sprintf("failed to load config: %s", err))
 		return
@@ -207,6 +213,7 @@ func startNebula() {
 		return
 	}
 	ctrl.Start()
+	cfg = c
 
 	setState(StateStarted, "started successfully")
 	l.Info("nebula started")
@@ -220,6 +227,7 @@ func stopNebula() {
 		ctrl.Stop()
 	}
 	ctrl = nil
+	cfg = nil
 	setState(StateStopped, "stopped")
 	l.Info("nebula stopped")
 }
@@ -237,16 +245,25 @@ func updateSystrayMenu() {
 		quit()
 	})
 	q.IsQuit = true
-	systrayMenu.Items = []*fyne.MenuItem{
+	items := []*fyne.MenuItem{
 		fyne.NewMenuItem(menuStartStopStr(), func() {
 			toggleNebula()
 		}),
+	}
+
+	if len(viaGroups) > 0 {
+		items = append(items, routesMenuItem())
+	}
+
+	items = append(items,
 		fyne.NewMenuItem("status", func() {
 			showStatusWindow()
 		}),
 		fyne.NewMenuItemSeparator(),
 		q,
-	}
+	)
+
+	systrayMenu.Items = items
 
 	systrayMenu.Refresh()
 }
