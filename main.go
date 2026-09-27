@@ -134,7 +134,10 @@ func main() {
 	}
 
 	nebulaTray = app.New()
-	preventAutomaticTermination()
+	// AppKit finalizes its termination state while the event loop starts, so
+	// install the opt-out from Fyne's started callback instead of before Run.
+	// An earlier call can be overwritten during NSApplication launch.
+	nebulaTray.Lifecycle().SetOnStarted(preventAutomaticTermination)
 	nebulaTray.SetIcon(theme.Icon(theme.IconNameComputer))
 
 	ensureElevated(nebulaTray)

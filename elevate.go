@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -130,6 +131,13 @@ func relaunchDirect() {
 	args := elevatedRelaunchArgs("-elevate-attempted", *configPath, *configTest, logDestination)
 
 	cmd := exec.Command(self, args...)
+	// Process.Release only releases Go's handle; it does not detach the child
+	// from the osascript/authtrampoline session. Under memory pressure macOS
+	// may jetsam authtrampoline; the final app has been observed terminating at
+	// the same instant that session is torn down. Start the long-running app in
+	// a new session and process group so the authentication helper can exit (or
+	// be reclaimed) independently.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	// Do not inherit stdout/stderr from the process launched by
 	// "do shell script". osascript captures those descriptors and waits for
 	// EOF; if the long-running app inherits them, osascript stays alive even
